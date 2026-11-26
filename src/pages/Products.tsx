@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
-import { Plus, Upload, Download, Pencil, Trash2, Search } from 'lucide-react'
+import { useSearchParams } from 'react-router-dom'
+import { Plus, Upload, Download, Pencil, Trash2, Search, Camera } from 'lucide-react'
+import CameraScanner from '../components/CameraScanner'
 import { supabase, errMsg, type Product } from '../lib/supabase'
 import { usePermissions } from '../lib/auth'
 import { money, qty } from '../lib/format'
@@ -13,6 +15,7 @@ const PAGE = 50
 export default function Products() {
   const { isManager, isAdmin } = usePermissions()
   const toast = useToast()
+  const [params, setParams] = useSearchParams()
   const [rows, setRows] = useState<Product[]>([])
   const [count, setCount] = useState(0)
   const [page, setPage] = useState(0)
@@ -24,6 +27,34 @@ export default function Products() {
   const [formOpen, setFormOpen] = useState(false)
   const [importOpen, setImportOpen] = useState(false)
   const [exporting, setExporting] = useState(false)
+  const [camera, setCamera] = useState(false)
+
+  // menu shortcuts: /products?filter=low, ?new=1, ?import=1
+  const pFilter = params.get('filter')
+  const pNew = params.get('new')
+  const pImport = params.get('import')
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setFilter(pFilter === 'low' || pFilter === 'out' ? pFilter : 'all')
+    setPage(0)
+  }, [pFilter])
+  useEffect(() => {
+    if (pNew && isManager) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setEditing(null)
+      setFormOpen(true)
+    }
+  }, [pNew, isManager])
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    if (pImport && isManager) setImportOpen(true)
+  }, [pImport, isManager])
+  const clearParam = (k: string) => {
+    if (!params.has(k)) return
+    const next = new URLSearchParams(params)
+    next.delete(k)
+    setParams(next, { replace: true })
+  }
 
   // debounce search box
   useEffect(() => {
@@ -114,13 +145,25 @@ export default function Products() {
       <div className="flex flex-col gap-2 sm:flex-row">
         <div className="relative flex-1">
           <Search className="pointer-events-none absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
-          <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search name, code or category (or scan)" className={`${inputCls} pl-9`} />
+          <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search name, code or category (or scan)" className={`${inputCls} pl-9 pr-11`} />
+          <button
+            onClick={() => setCamera(true)}
+            className="absolute right-1 top-1 rounded-md p-1.5 text-indigo-600 hover:bg-indigo-50"
+            title="Find a product by scanning it with the camera"
+            aria-label="Scan with camera"
+          >
+            <Camera className="h-5 w-5" />
+          </button>
+          <CameraScanner open={camera} continuous={false} title="Scan to find a product" onClose={() => setCamera(false)} onDetect={(code) => setQ(code)} />
         </div>
         <Select
           value={filter}
           onChange={(e) => {
-            setFilter(e.target.value as typeof filter)
-            setPage(0)
+            const v = e.target.value
+            const next = new URLSearchParams(params)
+            if (v === 'all') next.delete('filter')
+            else next.set('filter', v)
+            setParams(next, { replace: true })
           }}
           className="sm:w-44"
         >
@@ -235,13 +278,24 @@ export default function Products() {
       <ProductForm
         open={formOpen}
         editing={editing}
-        onClose={() => setFormOpen(false)}
+        onClose={() => {
+          setFormOpen(false)
+          clearParam('new')
+        }}
         onSaved={() => {
           setFormOpen(false)
+          clearParam('new')
           load()
         }}
       />
-      <ImportProducts open={importOpen} onClose={() => setImportOpen(false)} onDone={load} />
+      <ImportProducts
+        open={importOpen}
+        onClose={() => {
+          setImportOpen(false)
+          clearParam('import')
+        }}
+        onDone={load}
+      />
     </div>
   )
 }

@@ -1,6 +1,9 @@
 import { useEffect, useState } from 'react'
 import { supabase, errMsg, type Product } from '../lib/supabase'
+import { Camera } from 'lucide-react'
 import { Button, Field, Input, Modal, Select, useToast } from './ui'
+import CameraScanner from './CameraScanner'
+import { beep } from '../lib/beep'
 
 type FormState = Record<keyof Omit<Product, 'id'>, string>
 
@@ -48,6 +51,7 @@ export default function ProductForm({
   const [f, setF] = useState<FormState>(empty)
   const [more, setMore] = useState(false)
   const [busy, setBusy] = useState(false)
+  const [camera, setCamera] = useState(false)
 
   useEffect(() => {
     if (open) {
@@ -107,7 +111,22 @@ export default function ProductForm({
           </Field>
         </div>
         <Field label="Item code / barcode" hint="Scan the barcode into this box">
-          <Input value={f.item_code} onChange={set('item_code')} onKeyDown={(e) => e.key === 'Enter' && e.preventDefault()} />
+          <div className="flex gap-2">
+            <Input value={f.item_code} onChange={set('item_code')} onKeyDown={(e) => e.key === 'Enter' && e.preventDefault()} />
+            <Button variant="secondary" className="shrink-0 px-3" onClick={() => setCamera(true)} title="Scan with camera">
+              <Camera className="h-4 w-4" />
+            </Button>
+          </div>
+          <CameraScanner
+            open={camera}
+            continuous={false}
+            title="Scan the item's barcode"
+            onClose={() => setCamera(false)}
+            onDetect={(code) => {
+              beep(true)
+              setF((s) => ({ ...s, item_code: code }))
+            }}
+          />
         </Field>
         <Field label="Category">
           <Input value={f.category} onChange={set('category')} />

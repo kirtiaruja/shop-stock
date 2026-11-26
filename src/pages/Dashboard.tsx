@@ -1,10 +1,10 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { ShoppingCart, PackagePlus, AlertTriangle } from 'lucide-react'
+import { AlertTriangle } from 'lucide-react'
 import { supabase, type CatalogItem } from '../lib/supabase'
 import { usePermissions, useAuth } from '../lib/auth'
 import { money, qty, dateTime } from '../lib/format'
-import { Card, PageHeader, Spinner, StockBadge, Button } from '../components/ui'
+import { Card, PageHeader, Spinner, StockBadge } from '../components/ui'
 
 interface Stats {
   today_total: number
@@ -74,22 +74,6 @@ export default function Dashboard() {
       <PageHeader
         title={`Hello, ${profile?.full_name?.split(' ')[0] || 'there'}`}
         subtitle="Here is how the shop is doing"
-        actions={
-          <>
-            <Link to="/sale/new">
-              <Button>
-                <ShoppingCart className="h-4 w-4" /> New sale
-              </Button>
-            </Link>
-            {isManager && (
-              <Link to="/purchase/new">
-                <Button variant="secondary">
-                  <PackagePlus className="h-4 w-4" /> New purchase
-                </Button>
-              </Link>
-            )}
-          </>
-        }
       />
 
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">

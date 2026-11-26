@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
-import { ScanBarcode } from 'lucide-react'
+import { ScanBarcode, Camera } from 'lucide-react'
+import CameraScanner, { type ScanFeedback } from './CameraScanner'
 import type { CatalogItem } from '../lib/supabase'
 import { beep } from '../lib/beep'
 import { money, qty } from '../lib/format'
@@ -28,6 +29,7 @@ export default function ScanBox({ lookup, search, onPick, showCost, disabled }: 
   const [msg, setMsg] = useState<string | null>(null)
   const [active, setActive] = useState(0)
   const inputRef = useRef<HTMLInputElement>(null)
+  const [camera, setCamera] = useState(false)
   const suggestions = text.trim().length >= 2 ? search(text, 8) : []
 
   const resolve = (raw: string) => {
@@ -51,6 +53,18 @@ export default function ScanBox({ lookup, search, onPick, showCost, disabled }: 
     }
     beep(false)
     setMsg(`No product found for “${value}”`)
+  }
+
+  /** Camera scans are exact codes, so only exact matches are added. */
+  const fromCamera = (code: string): ScanFeedback => {
+    const hit = lookup(code)
+    if (hit) {
+      onPick(hit)
+      beep(true)
+      return { ok: true, text: `Added: ${hit.name}` }
+    }
+    beep(false)
+    return { ok: false, text: `Not found: ${code}` }
   }
 
   // Catch scans when focus is not inside any input.
@@ -122,7 +136,26 @@ export default function ScanBox({ lookup, search, onPick, showCost, disabled }: 
           inputMode="search"
           autoComplete="off"
         />
+        <button
+          type="button"
+          onClick={() => setCamera(true)}
+          disabled={disabled}
+          className="-mr-1 flex shrink-0 items-center gap-1 rounded-lg bg-indigo-600 px-3 py-2 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-50"
+          title="Scan with camera"
+        >
+          <Camera className="h-4 w-4" />
+          <span className="hidden sm:inline">Camera</span>
+        </button>
       </div>
+      <CameraScanner
+        open={camera}
+        onClose={() => {
+          setCamera(false)
+          setTimeout(() => inputRef.current?.focus(), 50)
+        }}
+        onDetect={fromCamera}
+        title="Scan items"
+      />
       {msg && <p className="mt-1 text-sm text-red-600">{msg}</p>}
       {suggestions.length > 0 && (
         <ul className="absolute z-30 mt-1 max-h-80 w-full overflow-y-auto rounded-xl border border-slate-200 bg-white shadow-lg">
