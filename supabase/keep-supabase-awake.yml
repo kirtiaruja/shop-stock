@@ -1,0 +1,19 @@
+# Pings Supabase every 2 days so a free project is never paused for inactivity.
+# Add two repository secrets on GitHub (Settings → Secrets and variables → Actions):
+#   SUPABASE_URL       e.g. https://xxxx.supabase.co
+#   SUPABASE_ANON_KEY  the same anon / publishable key the app uses
+name: Keep Supabase awake
+on:
+  schedule:
+    - cron: '17 3 */2 * *'
+  workflow_dispatch:
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Call ping()
+        run: |
+          curl -fsS -X POST "${{ secrets.SUPABASE_URL }}/rest/v1/rpc/ping" \
+            -H "apikey: ${{ secrets.SUPABASE_ANON_KEY }}" \
+            -H "Authorization: Bearer ${{ secrets.SUPABASE_ANON_KEY }}" \
+            -H "Content-Type: application/json" -d '{}'
