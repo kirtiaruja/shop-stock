@@ -1,0 +1,10 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "shop-stock",
+  "compatibility_date": "2026-11-23",
+  "assets": {
+    "directory": "./dist",
+    // send every unknown path (e.g. /sales, /dues) to index.html so page refreshes work
+    "not_found_handling": "single-page-application"
+  }
+}

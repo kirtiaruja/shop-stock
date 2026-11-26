@@ -1,1 +1,2 @@
-/*    /index.html   200
+# Not needed: Cloudflare already serves index.html for app routes
+# (wrangler.jsonc sets not_found_handling = "single-page-application").
