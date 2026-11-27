@@ -1,4 +1,5 @@
 /* eslint-disable react-refresh/only-export-components */
+import { clearAllDrafts } from './draft'
 import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from 'react'
 import type { Session } from '@supabase/supabase-js'
 import { supabase, type Profile, type Role } from './supabase'
@@ -47,6 +48,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     loading,
     refreshProfile: () => loadProfile(session),
     signOut: async () => {
+      clearAllDrafts()
       await supabase.auth.signOut()
       setProfile(null)
     },

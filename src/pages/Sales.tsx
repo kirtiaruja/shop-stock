@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
-import { useSearchParams } from 'react-router-dom'
-import { Download, Printer, Trash2 } from 'lucide-react'
+import { useNavigate, useSearchParams } from 'react-router-dom'
+import { Download, Pencil, Printer, Trash2 } from 'lucide-react'
+import { editSale } from '../lib/editBill'
 import { supabase, errMsg } from '../lib/supabase'
 import { usePermissions } from '../lib/auth'
 import { money, dateTime } from '../lib/format'
@@ -19,6 +20,7 @@ export default function Sales() {
   const { isAdmin, isManager } = usePermissions()
   const toast = useToast()
   const [params, setParams] = useSearchParams()
+  const nav = useNavigate()
   const [from, setFrom] = useState(today())
   const [to, setTo] = useState(today())
   const [rows, setRows] = useState<SaleRow[]>([])
@@ -181,6 +183,12 @@ export default function Sales() {
           <div className="space-y-4">
             <Receipt sale={detail} />
             {detail.note && <p className="text-sm text-slate-600 print:hidden">Note: {detail.note}</p>}
+            {detail.edited_at && (
+              <p className="text-xs text-slate-500 print:hidden">
+                Edited {dateTime(detail.edited_at)}
+                {detail.edited_by_name ? ` by ${detail.edited_by_name}` : ''}
+              </p>
+            )}
             <BillPayments
               kind="sale"
               billId={detail.id}
@@ -196,6 +204,19 @@ export default function Sales() {
               {isAdmin && (
                 <Button variant="danger" onClick={remove}>
                   <Trash2 className="h-4 w-4" />
+                </Button>
+              )}
+              {isManager && (
+                <Button
+                  variant="secondary"
+                  className="flex-1"
+                  onClick={async () => {
+                    const missing = await editSale(detail)
+                    if (missing) toast('Some products on this bill were deleted — they are left out', false)
+                    nav('/sale/new')
+                  }}
+                >
+                  <Pencil className="h-4 w-4" /> Edit
                 </Button>
               )}
               <Button variant="secondary" className="flex-1" onClick={printReceipt}>

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
-import { useSearchParams } from 'react-router-dom'
-import { Download, Trash2 } from 'lucide-react'
+import { useNavigate, useSearchParams } from 'react-router-dom'
+import { Download, Pencil, Trash2 } from 'lucide-react'
+import { editPurchase } from '../lib/editBill'
 import { supabase, errMsg } from '../lib/supabase'
 import { usePermissions } from '../lib/auth'
 import { money, qty, dateTime } from '../lib/format'
@@ -10,23 +11,44 @@ import { Badge, Button, Card, Empty, Field, Input, Modal, PageHeader, Spinner, u
 
 interface PurchaseItem {
   id: number
+  product_id?: number | null
   product_name: string
   item_code: string | null
   qty: number
   cost: number
   line_total: number
+  discount_type?: string
+  discount?: number
+  discount_amount?: number
+  taxable?: number | null
+  tax_rate?: number
+  tax_amount?: number
 }
 interface PurchaseRow {
   id: number
+  supplier_id?: number | null
   supplier: string | null
   invoice_no: string | null
   total: number
+  subtotal?: number
+  discount_total?: number
+  tax_total?: number
+  tax_inclusive?: boolean
+  items_total?: number | null
+  bill_discount?: number
+  bill_discount_type?: string
+  bill_discount_amount?: number
+  bill_tax_rate?: number
+  bill_tax_amount?: number
+  bill_date?: string | null
   paid_amount: number
   due_amount: number
   payment_mode: string
   note: string | null
   created_by_name: string | null
   created_at: string
+  edited_at?: string | null
+  edited_by_name?: string | null
   purchase_items?: PurchaseItem[]
 }
 
@@ -37,7 +59,8 @@ const monthStart = () => {
 const today = () => new Date().toLocaleDateString('en-CA')
 
 export default function Purchases() {
-  const { isAdmin } = usePermissions()
+  const { isAdmin, isManager } = usePermissions()
+  const nav = useNavigate()
   const toast = useToast()
   const [params, setParams] = useSearchParams()
   const [from, setFrom] = useState(monthStart())
@@ -113,7 +136,14 @@ export default function Purchases() {
         'Item code': it.item_code,
         Qty: Number(it.qty),
         Cost: Number(it.cost),
+        'Discount ₹': Number(it.discount_amount ?? 0),
+        'Taxable ₹': Number(it.taxable ?? it.line_total),
+        'GST %': Number(it.tax_rate ?? 0),
+        'GST ₹': Number(it.tax_amount ?? 0),
         Amount: Number(it.line_total),
+        'Bill discount ₹': Number(p.bill_discount_amount ?? 0),
+        'GST on bill %': Number(p.bill_tax_rate ?? 0),
+        'GST on bill ₹': Number(p.bill_tax_amount ?? 0),
         'Purchase total': Number(p.total),
         'Paid': Number(p.paid_amount),
         'Due': Number(p.due_amount),
@@ -187,8 +217,16 @@ export default function Purchases() {
             <div className="grid grid-cols-2 gap-2 text-slate-600">
               <div>Supplier: <b className="text-slate-800">{detail.supplier || '—'}</b></div>
               <div>Invoice: <b className="text-slate-800">{detail.invoice_no || '—'}</b></div>
-              <div>Date: {dateTime(detail.created_at)}</div>
+              <div>
+                Bill date: {detail.bill_date ? new Date(`${detail.bill_date}T00:00:00`).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : dateTime(detail.created_at)}
+              </div>
               <div>By: {detail.created_by_name || '—'}</div>
+              {detail.edited_at && (
+                <div className="col-span-2 text-xs text-slate-500">
+                  Edited {dateTime(detail.edited_at)}
+                  {detail.edited_by_name ? ` by ${detail.edited_by_name}` : ''}
+                </div>
+              )}
             </div>
             <ul className="divide-y divide-slate-100 rounded-lg border border-slate-200">
               {(detail.purchase_items ?? []).map((it) => (
@@ -197,12 +235,53 @@ export default function Purchases() {
                     <span className="block truncate">{it.product_name}</span>
                     <span className="text-xs text-slate-500">
                       {qty(it.qty)} × {money(it.cost)}
+                      {Number(it.discount_amount) > 0 &&
+                        ` · disc ${it.discount_type === '₹' ? money(it.discount) : `${Number(it.discount)}%`} (−${money(it.discount_amount)})`}
+                      {Number(it.tax_rate) > 0 && ` · GST ${Number(it.tax_rate)}% ${money(it.tax_amount)}`}
                     </span>
                   </span>
                   <span className="font-medium">{money(it.line_total)}</span>
                 </li>
               ))}
             </ul>
+            <div className="flex justify-between text-slate-600">
+              <span>Items · Total qty</span>
+              <span>
+                {detail.purchase_items?.length ?? 0} · <b className="text-slate-900">{qty((detail.purchase_items ?? []).reduce((s, it) => s + Number(it.qty), 0))}</b>
+              </span>
+            </div>
+            {(Number(detail.discount_total) > 0 || Number(detail.tax_total) > 0 || Number(detail.bill_discount_amount) > 0 || Number(detail.bill_tax_amount) > 0) && (
+              <div className="space-y-0.5 text-slate-600">
+                <div className="flex justify-between">
+                  <span>Items total</span>
+                  <span>{money(detail.subtotal)}</span>
+                </div>
+                {Number(detail.discount_total) > 0 && (
+                  <div className="flex justify-between">
+                    <span>Item discounts</span>
+                    <span>−{money(detail.discount_total)}</span>
+                  </div>
+                )}
+                <div className="flex justify-between">
+                  <span>Item GST{detail.tax_inclusive ? ' (included)' : ''}</span>
+                  <span>{money(detail.tax_total)}</span>
+                </div>
+                {Number(detail.bill_discount_amount) > 0 && (
+                  <div className="flex justify-between">
+                    <span>
+                      Bill discount{detail.bill_discount_type === '%' ? ` (${Number(detail.bill_discount)}%)` : ''}
+                    </span>
+                    <span>−{money(detail.bill_discount_amount)}</span>
+                  </div>
+                )}
+                {Number(detail.bill_tax_amount) > 0 && (
+                  <div className="flex justify-between">
+                    <span>GST on bill ({Number(detail.bill_tax_rate)}%)</span>
+                    <span>+{money(detail.bill_tax_amount)}</span>
+                  </div>
+                )}
+              </div>
+            )}
             <div className="flex justify-between text-base font-bold">
               <span>Total</span>
               <span>{money(detail.total)}</span>
@@ -223,6 +302,19 @@ export default function Purchases() {
               {isAdmin && (
                 <Button variant="danger" onClick={remove}>
                   <Trash2 className="h-4 w-4" /> Delete
+                </Button>
+              )}
+              {isManager && (
+                <Button
+                  variant="secondary"
+                  className="flex-1"
+                  onClick={async () => {
+                    const missing = await editPurchase(detail)
+                    if (missing) toast('Some products on this purchase were deleted — they are left out', false)
+                    nav('/purchase/new')
+                  }}
+                >
+                  <Pencil className="h-4 w-4" /> Edit
                 </Button>
               )}
               <Button className="flex-1" onClick={close}>

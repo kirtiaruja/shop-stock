@@ -1,3 +1,4 @@
+import { useDraftItems } from '../lib/draft'
 import { useEffect, useState, type ComponentType } from 'react'
 import { Link, NavLink, Outlet, useLocation } from 'react-router-dom'
 import {
@@ -213,6 +214,14 @@ export default function Layout() {
   )
 
   /** Quick "add sale / add purchase" buttons shown at the top of every page. */
+  const saleItems = useDraftItems('sale')
+  const purchaseItems = useDraftItems('purchase')
+  const badge = (n: number, on: boolean, tone: string) =>
+    n > 0 && !on ? (
+      <span className={`ml-0.5 rounded-full px-1.5 text-xs font-semibold ${tone}`} title={`${n} item${n === 1 ? '' : 's'} on the bill in progress`}>
+        {n}
+      </span>
+    ) : null
   const quick = (
     <div className="flex items-center gap-2">
       <Link
@@ -220,6 +229,7 @@ export default function Layout() {
         className={`inline-flex items-center gap-1 rounded-lg px-2.5 py-2 text-sm font-medium text-white sm:gap-1.5 sm:px-3 ${pathname === '/sale/new' ? 'bg-indigo-800' : 'bg-indigo-600 hover:bg-indigo-700'}`}
       >
         <Plus className="h-4 w-4" /> <span className="hidden sm:inline">Add</span> <span className="sm:hidden">Sale</span><span className="hidden sm:inline">sale</span>
+        {badge(saleItems, pathname === '/sale/new', 'bg-white text-indigo-700')}
       </Link>
       {isManager && (
         <Link
@@ -227,6 +237,7 @@ export default function Layout() {
           className={`inline-flex items-center gap-1 rounded-lg border px-2.5 py-2 text-sm font-medium sm:gap-1.5 sm:px-3 ${pathname === '/purchase/new' ? 'border-emerald-700 bg-emerald-700 text-white' : 'border-emerald-600 text-emerald-700 hover:bg-emerald-50'}`}
         >
           <Plus className="h-4 w-4" /> <span className="hidden sm:inline">Add</span> <span className="sm:hidden">Purchase</span><span className="hidden sm:inline">purchase</span>
+          {badge(purchaseItems, pathname === '/purchase/new', 'bg-emerald-600 text-white')}
         </Link>
       )}
     </div>

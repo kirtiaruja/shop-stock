@@ -13,7 +13,10 @@ export interface SaleDetail {
   note: string | null
   created_by_name: string | null
   created_at: string
-  sale_items: { id: number; product_name: string; item_code: string | null; qty: number; price: number; line_total: number }[]
+  customer_id?: number | null
+  edited_at?: string | null
+  edited_by_name?: string | null
+  sale_items: { id: number; product_id?: number | null; product_name: string; item_code: string | null; qty: number; price: number; line_total: number }[]
 }
 
 /** Shop name / address shown on printed bills. Change these to yours. */
@@ -51,6 +54,10 @@ export default function Receipt({ sale }: { sale: SaleDetail }) {
         </div>
       ))}
       <div className="my-2 border-t border-dashed border-black" />
+      <div className="flex justify-between">
+        <span>Items: {sale.sale_items.length}</span>
+        <span>Total qty: {qty(sale.sale_items.reduce((s, it) => s + Number(it.qty), 0))}</span>
+      </div>
       <div className="flex justify-between">
         <span>Subtotal</span>
         <span>{money(sale.subtotal)}</span>

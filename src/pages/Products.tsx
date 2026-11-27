@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { Plus, Upload, Download, Pencil, Trash2, Search, Camera } from 'lucide-react'
 import CameraScanner from '../components/CameraScanner'
@@ -6,6 +6,7 @@ import ProductHistory from '../components/ProductHistory'
 import OldProducts from '../components/OldProducts'
 import { supabase, errMsg, type Product } from '../lib/supabase'
 import { usePermissions } from '../lib/auth'
+import { useCatalog } from '../lib/catalog'
 import { money, qty } from '../lib/format'
 import { exportProducts } from '../lib/excel'
 import ProductForm from '../components/ProductForm'
@@ -18,13 +19,10 @@ export default function Products() {
   const { isManager, isAdmin } = usePermissions()
   const toast = useToast()
   const [params, setParams] = useSearchParams()
-  const [rows, setRows] = useState<Product[]>([])
-  const [count, setCount] = useState(0)
   const [page, setPage] = useState(0)
   const [q, setQ] = useState('')
   const [term, setTerm] = useState('')
   const [filter, setFilter] = useState<'all' | 'low' | 'out' | 'old' | 'removed'>('all')
-  const [loading, setLoading] = useState(true)
   const [editing, setEditing] = useState<Product | null>(null)
   const [formOpen, setFormOpen] = useState(false)
   const [importOpen, setImportOpen] = useState(false)
@@ -68,37 +66,39 @@ export default function Products() {
     return () => clearTimeout(t)
   }, [q])
 
-  const source = isManager ? 'products' : 'product_catalog'
+  // Same in-memory product list as New Sale / New Purchase: opening this page, searching,
+  // filtering and paging download nothing once the list is loaded in this tab.
+  const cat = useCatalog(isManager)
+  const loading = cat.loading && !cat.items.length
 
-  const load = useCallback(async () => {
-    setLoading(true)
-    let query = supabase.from(source).select('*', { count: 'exact' })
-    if (term) {
-      const safe = term.replace(/[%,()]/g, ' ')
-      query = query.or(`name.ilike.%${safe}%,item_code.ilike.%${safe}%,category.ilike.%${safe}%`)
-    }
-    if (source === 'products') query = query.eq('archived', false) // removed products are hidden
-    if (filter === 'out') query = query.lte('stock', 0)
-    if (filter === 'low') query = query.eq('is_low', true)
-    const { data, error, count } = await query.order('name').range(page * PAGE, page * PAGE + PAGE - 1)
-    const list = (data ?? []) as Product[]
-    if (error) toast(error.message, false)
-    setRows(list)
-    setCount(count ?? 0)
-    setLoading(false)
-  }, [source, term, filter, page, toast])
+  const filtered = useMemo(() => {
+    const words = term.toLowerCase().split(/\s+/).filter(Boolean)
+    return (cat.items as Product[]).filter((p) => {
+      if (filter === 'out' && !(Number(p.stock) <= 0)) return false
+      if (filter === 'low' && !(Number(p.stock) <= Number(p.min_stock))) return false
+      if (!words.length) return true
+      const hay = `${p.name} ${p.item_code ?? ''} ${p.category ?? ''}`.toLowerCase()
+      return words.every((w) => hay.includes(w))
+    })
+  }, [cat.items, term, filter])
+  const count = filtered.length
+  const rows = filtered.slice(page * PAGE, page * PAGE + PAGE)
 
-  useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    load()
-  }, [load])
+  /** the list only holds the columns needed for billing — fetch the full product before editing */
+  const openEdit = async (p: Product | null) => {
+    if (!p) return
+    const { data, error } = await supabase.from('products').select('*').eq('id', p.id).single()
+    if (error) return toast(errMsg(error), false)
+    setEditing(data as Product)
+    setFormOpen(true)
+  }
 
   const remove = async (p: Product) => {
     if (!confirm(`Delete “${p.name}”? Past bills keep their copy of the name.`)) return
     const { error } = await supabase.from('products').delete().eq('id', p.id)
     if (error) return toast(errMsg(error), false)
     toast('Product deleted')
-    load()
+    cat.refresh([p.id])
   }
 
   const exportAll = async () => {
@@ -220,10 +220,7 @@ export default function Products() {
                       {isManager && (
                         <td className="whitespace-nowrap px-4 py-2 text-right" onClick={(e) => e.stopPropagation()}>
                           <button
-                            onClick={() => {
-                              setEditing(p)
-                              setFormOpen(true)
-                            }}
+                            onClick={() => openEdit(p)}
                             className="rounded p-1 text-slate-500 hover:bg-slate-100"
                             aria-label="Edit"
                           >
@@ -287,9 +284,9 @@ export default function Products() {
         product={viewing}
         onClose={() => setViewing(null)}
         onEdit={() => {
-          setEditing(viewing)
+          const v = viewing
           setViewing(null)
-          setFormOpen(true)
+          openEdit(v)
         }}
       />
       <ProductForm
@@ -299,10 +296,10 @@ export default function Products() {
           setFormOpen(false)
           clearParam('new')
         }}
-        onSaved={() => {
+        onSaved={(saved) => {
           setFormOpen(false)
           clearParam('new')
-          load()
+          cat.refresh([saved.id]) // just this product
         }}
       />
       <ImportProducts
@@ -311,7 +308,7 @@ export default function Products() {
           setImportOpen(false)
           clearParam('import')
         }}
-        onDone={load}
+        onDone={cat.reload}
       />
     </div>
   )

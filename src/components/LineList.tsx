@@ -11,6 +11,10 @@ export interface Line {
   stock: number
   /** label details when the item came from the barcode wizard (purchases only) */
   label?: LabelInfo
+  /** purchases only: discount per item and GST % */
+  disc?: number
+  discType?: '%' | '₹'
+  tax?: number
 }
 
 export interface LabelInfo {
@@ -73,7 +77,8 @@ export default function LineList({ lines, onChange, rateLabel, warnStock, canEdi
                   type="number"
                   inputMode="decimal"
                   min={0}
-                  value={l.qty}
+                  value={l.qty || ''}
+                  placeholder="0"
                   onChange={(e) => set(i, { qty: Number(e.target.value) })}
                   className="w-12 bg-transparent text-center text-sm outline-none"
                 />
@@ -87,7 +92,8 @@ export default function LineList({ lines, onChange, rateLabel, warnStock, canEdi
                   inputMode="decimal"
                   min={0}
                   disabled={!canEditRate}
-                  value={l.rate}
+                  value={l.rate || ''}
+                  placeholder="0"
                   onChange={(e) => set(i, { rate: Number(e.target.value) })}
                   className="w-24 rounded-lg border border-slate-300 px-2 py-1.5 text-right text-sm outline-none focus:border-indigo-500 disabled:bg-slate-50 md:w-full"
                   aria-label={rateLabel}

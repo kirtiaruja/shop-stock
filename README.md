@@ -10,7 +10,7 @@ Web app for your shop: sales and purchases using a barcode scanner, products (ad
 
 1. Go to <https://supabase.com>, sign up, and click **New project**. Pick the **Mumbai (ap-south-1)** region so it's fast from India. Save the database password somewhere safe.
 2. Open **SQL Editor → New query**, paste the whole of `supabase/schema.sql`, and click **Run**. You should see "Success". Then do the same, in order, with `supabase/002_credit_payments.sql` (credit, payments, suppliers) `supabase/003_product_history.sql` (item history and stock change log) and `supabase/004_barcode_wizard.sql` (barcode generator). All of these can safely be run again later.
-   Then run `supabase/006_remove_old_products.sql` (removing old products).
+   Then run `supabase/006_remove_old_products.sql` (removing old products) and `supabase/008_purchase_tax_discount.sql` (purchase bill date, GST and discount per item), then `supabase/009_purchase_bill_discount.sql` (discount on the whole purchase bill), then `supabase/010_slash_sizes.sql` (sizes like S/80CM in the barcode wizard), then `supabase/011_purchase_bill_gst.sql` (GST on the purchase bill amount), then `supabase/012_edit_bills.sql` (edit saved bills and purchases).
    After your products are imported (step 3), run `supabase/005_barcode_cleanup.sql` **once** — it adds the few labels the old Barcode Wizard printed that never reached StockPilot, and lists products that were renamed after their label was printed.
 3. Open **Project Settings → API** (or the **Connect** button) and copy:
    - **Project URL**
@@ -74,6 +74,7 @@ The old Django Barcode Wizard now lives inside **New purchase → Generate barco
 - **Keep wizard-made names in the label format.** If you rename one (e.g. `HOSIERY BERMUDA XL B50` → `MIDAS BERMUDA XL B50`), the wizard won't recognise it and will make a new barcode next time — the product form warns you.
 - **Note** button: paste the text of a handwritten supplier note (copied with Google Lens / iPhone Live Text), check the rows, add them all at once.
 - **Print labels** (on New purchase): A4 sticker sheets (65, 48, 44, 40, 24, 21, 16, 14 per sheet), Code 39, name + number + MRP — same layout as before. "Start at sticker no." lets you finish a half-used sheet.
+- **Bill date, discount and GST:** pick the supplier's bill date (no future dates). Each item can have a discount in % or ₹ and a GST rate (taken from the product's tax rate; *GST for all items* sets every line at once). Tick *Costs already include GST* if the supplier's prices include GST. The product's purchase price is saved as the cost per piece after discount, without GST.
 - **Save purchase** adds the stock. No Excel export or Vyapar step needed.
 - A product can have extra barcodes (e.g. old label `121` for `000121`) — scanning either one finds it.
 
