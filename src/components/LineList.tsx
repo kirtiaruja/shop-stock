@@ -9,6 +9,15 @@ export interface Line {
   qty: number
   rate: number // sale price or purchase cost
   stock: number
+  /** label details when the item came from the barcode wizard (purchases only) */
+  label?: LabelInfo
+}
+
+export interface LabelInfo {
+  item_name: string
+  barcode: string
+  mrp: number
+  desc?: string
 }
 
 interface Props {

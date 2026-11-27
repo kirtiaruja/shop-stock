@@ -31,6 +31,9 @@ const empty: FormState = {
 const toForm = (p: Product): FormState =>
   Object.fromEntries(Object.keys(empty).map((k) => [k, p[k as keyof Product] == null ? '' : String(p[k as keyof Product])])) as FormState
 
+/** names made by the barcode wizard contain a price code, e.g. "JEANS 32 A300" */
+const LABEL_NAME_RE = /(?:^| |-)[A-KZ][0-9]{2,3}(?:[-/][0-9])?(?=$| |-)/
+
 const numOrNull = (v: string) => (v.trim() === '' ? null : Number(v))
 const textOrNull = (v: string) => (v.trim() === '' ? null : v.trim())
 
@@ -109,6 +112,12 @@ export default function ProductForm({
           <Field label="Item name *">
             <Input autoFocus value={f.name} onChange={set('name')} />
           </Field>
+          {editing && LABEL_NAME_RE.test(editing.name.toUpperCase()) && f.name.trim().toUpperCase() !== editing.name.trim().toUpperCase() && (
+            <p className="mt-1 rounded-md bg-amber-50 px-2 py-1.5 text-xs text-amber-800">
+              The barcode wizard recognises this item by its name (“{editing.name}”). After renaming, the wizard will treat it as a new item and give it a new barcode
+              next time.
+            </p>
+          )}
         </div>
         <Field label="Item code / barcode" hint="Scan the barcode into this box">
           <div className="flex gap-2">

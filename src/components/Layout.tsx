@@ -63,6 +63,7 @@ const NAV: Group[] = [
       { to: '/products?filter=low', label: 'Low stock', who: 'staff' },
       { to: '/products?new=1', label: 'Add product', who: 'manager' },
       { to: '/products?import=1', label: 'Import from Excel', who: 'manager' },
+      { to: '/products?filter=old', label: 'Old names, no stock', who: 'manager' },
     ],
   },
   {

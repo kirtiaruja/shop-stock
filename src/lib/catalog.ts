@@ -12,6 +12,7 @@ export function useCatalog(withCost: boolean) {
   const [items, setItems] = useState<CatalogItem[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [extraCodes, setExtraCodes] = useState<{ barcode_number: string; product_id: number }[]>([])
 
   const reload = useCallback(async () => {
     setLoading(true)
@@ -22,7 +23,9 @@ export function useCatalog(withCost: boolean) {
       : '*'
     const all: CatalogItem[] = []
     for (let from = 0; ; from += PAGE) {
-      const { data, error } = await supabase.from(source).select(cols).order('name').range(from, from + PAGE - 1)
+      let q = supabase.from(source).select(cols)
+      if (withCost) q = q.eq('archived', false) // removed products can't be billed (the salesman view already hides them)
+      const { data, error } = await q.order('name').range(from, from + PAGE - 1)
       if (error) {
         setError(error.message)
         break
@@ -30,6 +33,9 @@ export function useCatalog(withCost: boolean) {
       all.push(...((data ?? []) as unknown as CatalogItem[]))
       if (!data || data.length < PAGE) break
     }
+    // extra barcodes (old labels like 121 for product 000121)
+    const extra = await supabase.from('product_barcodes').select('barcode_number,product_id').limit(5000)
+    setExtraCodes(extra.error ? [] : ((extra.data ?? []) as { barcode_number: string; product_id: number }[]))
     setItems(all)
     setLoading(false)
   }, [withCost])
@@ -42,8 +48,14 @@ export function useCatalog(withCost: boolean) {
   const byCode = useMemo(() => {
     const m = new Map<string, CatalogItem>()
     for (const it of items) if (it.item_code) m.set(it.item_code.trim().toLowerCase(), it)
+    const byId = new Map(items.map((it) => [it.id, it]))
+    for (const x of extraCodes) {
+      const it = byId.get(x.product_id)
+      const k = x.barcode_number.trim().toLowerCase()
+      if (it && !m.has(k)) m.set(k, it)
+    }
     return m
-  }, [items])
+  }, [items, extraCodes])
 
   const byName = useMemo(() => {
     const m = new Map<string, CatalogItem>()

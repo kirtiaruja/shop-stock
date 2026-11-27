@@ -1,5 +1,5 @@
 /* eslint-disable react-refresh/only-export-components */
-import { createContext, useCallback, useContext, useEffect, useState, type ButtonHTMLAttributes, type InputHTMLAttributes, type ReactNode, type SelectHTMLAttributes } from 'react'
+import { createContext, useCallback, useContext, useEffect, useState, type Ref, type ButtonHTMLAttributes, type InputHTMLAttributes, type ReactNode, type SelectHTMLAttributes } from 'react'
 import { X, Loader2, CheckCircle2, AlertCircle } from 'lucide-react'
 
 type Variant = 'primary' | 'secondary' | 'danger' | 'ghost'
@@ -42,7 +42,7 @@ export function Field({ label, children, hint }: { label: string; children: Reac
   )
 }
 
-export function Input(props: InputHTMLAttributes<HTMLInputElement>) {
+export function Input(props: InputHTMLAttributes<HTMLInputElement> & { ref?: Ref<HTMLInputElement> }) {
   return <input {...props} className={`${inputCls} ${props.className ?? ''}`} />
 }
 

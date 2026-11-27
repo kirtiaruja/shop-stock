@@ -2,6 +2,8 @@ import { useCallback, useEffect, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { Plus, Upload, Download, Pencil, Trash2, Search, Camera } from 'lucide-react'
 import CameraScanner from '../components/CameraScanner'
+import ProductHistory from '../components/ProductHistory'
+import OldProducts from '../components/OldProducts'
 import { supabase, errMsg, type Product } from '../lib/supabase'
 import { usePermissions } from '../lib/auth'
 import { money, qty } from '../lib/format'
@@ -21,13 +23,14 @@ export default function Products() {
   const [page, setPage] = useState(0)
   const [q, setQ] = useState('')
   const [term, setTerm] = useState('')
-  const [filter, setFilter] = useState<'all' | 'low' | 'out'>('all')
+  const [filter, setFilter] = useState<'all' | 'low' | 'out' | 'old' | 'removed'>('all')
   const [loading, setLoading] = useState(true)
   const [editing, setEditing] = useState<Product | null>(null)
   const [formOpen, setFormOpen] = useState(false)
   const [importOpen, setImportOpen] = useState(false)
   const [exporting, setExporting] = useState(false)
   const [camera, setCamera] = useState(false)
+  const [viewing, setViewing] = useState<Product | null>(null)
 
   // menu shortcuts: /products?filter=low, ?new=1, ?import=1
   const pFilter = params.get('filter')
@@ -35,9 +38,9 @@ export default function Products() {
   const pImport = params.get('import')
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
-    setFilter(pFilter === 'low' || pFilter === 'out' ? pFilter : 'all')
+    setFilter(pFilter === 'low' || pFilter === 'out' || ((pFilter === 'old' || pFilter === 'removed') && isManager) ? pFilter : 'all')
     setPage(0)
-  }, [pFilter])
+  }, [pFilter, isManager])
   useEffect(() => {
     if (pNew && isManager) {
       // eslint-disable-next-line react-hooks/set-state-in-effect
@@ -74,6 +77,7 @@ export default function Products() {
       const safe = term.replace(/[%,()]/g, ' ')
       query = query.or(`name.ilike.%${safe}%,item_code.ilike.%${safe}%,category.ilike.%${safe}%`)
     }
+    if (source === 'products') query = query.eq('archived', false) // removed products are hidden
     if (filter === 'out') query = query.lte('stock', 0)
     if (filter === 'low') query = query.eq('is_low', true)
     const { data, error, count } = await query.order('name').range(page * PAGE, page * PAGE + PAGE - 1)
@@ -101,7 +105,7 @@ export default function Products() {
     setExporting(true)
     const all: Product[] = []
     for (let from = 0; ; from += 1000) {
-      const { data, error } = await supabase.from('products').select('*').order('name').range(from, from + 999)
+      const { data, error } = await supabase.from('products').select('*').eq('archived', false).order('name').range(from, from + 999)
       if (error) {
         toast(error.message, false)
         break
@@ -165,14 +169,20 @@ export default function Products() {
             else next.set('filter', v)
             setParams(next, { replace: true })
           }}
-          className="sm:w-44"
+          className="sm:w-56"
         >
           <option value="all">All products</option>
           <option value="low">Low stock</option>
           <option value="out">Out of stock</option>
+          {isManager && <option value="old">Old names, no stock left</option>}
+          {isManager && <option value="removed">Removed products</option>}
         </Select>
       </div>
 
+      {filter === 'old' || filter === 'removed' ? (
+        <OldProducts mode={filter} search={term} />
+      ) : (
+        <>
       <Card className="overflow-hidden">
         {loading ? (
           <Spinner />
@@ -197,7 +207,7 @@ export default function Products() {
                 </thead>
                 <tbody className="divide-y divide-slate-100">
                   {rows.map((p) => (
-                    <tr key={p.id} className="hover:bg-slate-50">
+                    <tr key={p.id} className="cursor-pointer hover:bg-slate-50" onClick={() => setViewing(p)} title="View item details">
                       <td className="max-w-xs truncate px-4 py-2 font-medium text-slate-800">{p.name}</td>
                       <td className="px-4 py-2 text-slate-600">{p.item_code || '—'}</td>
                       <td className="max-w-[12rem] truncate px-4 py-2 text-slate-600">{p.category || '—'}</td>
@@ -208,7 +218,7 @@ export default function Products() {
                         <StockBadge stock={p.stock} min={p.min_stock} />
                       </td>
                       {isManager && (
-                        <td className="whitespace-nowrap px-4 py-2 text-right">
+                        <td className="whitespace-nowrap px-4 py-2 text-right" onClick={(e) => e.stopPropagation()}>
                           <button
                             onClick={() => {
                               setEditing(p)
@@ -236,12 +246,8 @@ export default function Products() {
               {rows.map((p) => (
                 <li
                   key={p.id}
-                  className="flex items-center justify-between gap-3 px-4 py-3"
-                  onClick={() => {
-                    if (!isManager) return
-                    setEditing(p)
-                    setFormOpen(true)
-                  }}
+                  className="flex cursor-pointer items-center justify-between gap-3 px-4 py-3 active:bg-slate-50"
+                  onClick={() => setViewing(p)}
                 >
                   <div className="min-w-0">
                     <div className="truncate text-sm font-medium">{p.name}</div>
@@ -274,7 +280,18 @@ export default function Products() {
           </Button>
         </div>
       )}
+        </>
+      )}
 
+      <ProductHistory
+        product={viewing}
+        onClose={() => setViewing(null)}
+        onEdit={() => {
+          setEditing(viewing)
+          setViewing(null)
+          setFormOpen(true)
+        }}
+      />
       <ProductForm
         open={formOpen}
         editing={editing}
